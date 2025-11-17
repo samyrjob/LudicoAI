@@ -12,13 +12,17 @@ const statusText = document.getElementById('status-text');
 const modelSelect = document.getElementById('model-select');
 const sourceLangSelect = document.getElementById('source-lang-select');
 const targetLangSelect = document.getElementById('target-lang-select');
+const translationToggle = document.getElementById('translation-toggle');
+const targetLangGroup = document.getElementById('target-lang-group');
+const controls = document.getElementById('controls');
 
 // State
 let hideTimeout = null;
 let currentSettings = {
     model: 'base',
     sourceLang: 'auto',
-    targetLang: 'none'
+    targetLang: 'en',
+    translationEnabled: false
 };
 
 // Translation cache
@@ -33,6 +37,10 @@ function loadSettings() {
             modelSelect.value = currentSettings.model;
             sourceLangSelect.value = currentSettings.sourceLang;
             targetLangSelect.value = currentSettings.targetLang;
+            translationToggle.checked = currentSettings.translationEnabled || false;
+
+            // Show/hide target language dropdown based on toggle
+            targetLangGroup.style.display = translationToggle.checked ? 'flex' : 'none';
         } catch (e) {
             console.error('[Renderer] Failed to load settings:', e);
         }
@@ -98,7 +106,7 @@ async function showSubtitle(text) {
     subtitleBox.classList.add('fade-in');
 
     // Handle translation
-    if (currentSettings.targetLang !== 'none') {
+    if (currentSettings.translationEnabled && currentSettings.targetLang !== 'none') {
         translationRow.style.display = 'flex';
         translationText.textContent = 'Translating...';
 
@@ -153,17 +161,35 @@ sourceLangSelect.addEventListener('change', (e) => {
     ipcRenderer.send('change-source-lang', currentSettings.sourceLang);
 });
 
+// Handle translation toggle
+translationToggle.addEventListener('change', (e) => {
+    currentSettings.translationEnabled = e.target.checked;
+    saveSettings();
+
+    if (e.target.checked) {
+        targetLangGroup.style.display = 'flex';
+        updateStatus(`Translation enabled - ${targetLangSelect.options[targetLangSelect.selectedIndex].text}`);
+    } else {
+        targetLangGroup.style.display = 'none';
+        translationRow.style.display = 'none';
+        updateStatus('Translation disabled');
+    }
+});
+
 // Handle target language change
 targetLangSelect.addEventListener('change', (e) => {
     currentSettings.targetLang = e.target.value;
     saveSettings();
+    updateStatus(`Translating to ${e.target.options[e.target.selectedIndex].text}`);
+});
 
-    if (currentSettings.targetLang === 'none') {
-        translationRow.style.display = 'none';
-        updateStatus('Translation disabled');
-    } else {
-        updateStatus(`Translating to ${e.target.options[e.target.selectedIndex].text}`);
-    }
+// Fix click-through: Enable mouse events when hovering over controls
+controls.addEventListener('mouseenter', () => {
+    ipcRenderer.send('toggle-click-through', false);
+});
+
+controls.addEventListener('mouseleave', () => {
+    ipcRenderer.send('toggle-click-through', true);
 });
 
 // Handle transcription from backend

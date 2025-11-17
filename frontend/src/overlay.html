@@ -60,7 +60,7 @@
         select {
             background: rgba(255, 255, 255, 0.1);
             color: #ffffff;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: none;
             border-radius: 8px;
             padding: 6px 12px;
             font-size: 13px;
@@ -72,12 +72,11 @@
 
         select:hover {
             background: rgba(255, 255, 255, 0.15);
-            border-color: rgba(255, 255, 255, 0.3);
         }
 
         select:focus {
             background: rgba(255, 255, 255, 0.2);
-            border-color: #4ade80;
+            box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.4);
         }
 
         select option {
@@ -187,6 +186,61 @@
         .fade-in {
             animation: fadeIn 0.3s ease;
         }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            -webkit-app-region: no-drag;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch input:checked + .slider {
+            background: #4ade80;
+        }
+
+        .toggle-switch input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        .toggle-switch:hover .slider {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .toggle-switch input:checked:hover + .slider {
+            background: #3bc970;
+        }
     </style>
 </head>
 <body>
@@ -237,6 +291,14 @@
             </div>
 
             <div class="control-group">
+                <span class="control-label">Live Translation</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="translation-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="control-group" id="target-lang-group" style="display: none;">
                 <span class="control-label">Translate To</span>
                 <select id="target-lang-select">
                     <option value="none">⊗ None</option>
