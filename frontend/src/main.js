@@ -47,7 +47,8 @@ function createWindow() {
 function startBackend() {
     // Path to the C backend executable
     const backendPath = path.join(__dirname, '../../build/visualia');
-    const modelPath = path.join(__dirname, '../../models/whisper-base.gguf');
+    const modelFile = process.env.VISUALIA_MODEL || 'whisper-base.gguf';
+    const modelPath = path.join(__dirname, '../../models', modelFile);
     const language = process.env.VISUALIA_LANG || 'auto';  // Default to auto-detect
 
     console.log('[Electron] Starting backend:', backendPath);
@@ -135,4 +136,36 @@ ipcMain.on('toggle-click-through', (event, enabled) => {
     if (mainWindow) {
         mainWindow.setIgnoreMouseEvents(enabled);
     }
+});
+
+// Handle model change requests
+ipcMain.on('change-model', (event, model) => {
+    console.log('[Electron] Changing model to:', model);
+    stopBackend();
+
+    // Update model path based on selection
+    const modelFiles = {
+        'base': 'whisper-base.gguf',
+        'small': 'whisper-small.gguf',
+        'medium': 'whisper-medium.gguf',
+        'large-v3': 'whisper-large-v3.gguf'
+    };
+
+    process.env.VISUALIA_MODEL = modelFiles[model] || 'whisper-base.gguf';
+
+    setTimeout(() => {
+        startBackend();
+    }, 1000);
+});
+
+// Handle source language change requests
+ipcMain.on('change-source-lang', (event, lang) => {
+    console.log('[Electron] Changing source language to:', lang);
+    stopBackend();
+
+    process.env.VISUALIA_LANG = lang;
+
+    setTimeout(() => {
+        startBackend();
+    }, 1000);
 });
