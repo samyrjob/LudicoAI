@@ -1,0 +1,50 @@
+{
+  "name": "visualia-frontend",
+  "version": "0.1.0",
+  "description": "VisualIA - Real-time AI Assistant Frontend",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging",
+    "build": "electron-builder",
+    "clean": "rm -rf dist node_modules"
+  },
+  "keywords": [
+    "ai",
+    "subtitles",
+    "transcription",
+    "whisper",
+    "overlay"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.0"
+  },
+  "dependencies": {},
+  "build": {
+    "appId": "com.visualia.app",
+    "productName": "VisualIA",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}

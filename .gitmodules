@@ -1,0 +1,6 @@
+[submodule "backend/libs/whisper.cpp"]
+	path = backend/libs/whisper.cpp
+	url = https://github.com/ggerganov/whisper.cpp.git
+[submodule "backend/libs/llama.cpp"]
+	path = backend/libs/llama.cpp
+	url = https://github.com/ggerganov/llama.cpp.git
