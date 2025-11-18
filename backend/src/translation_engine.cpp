@@ -146,14 +146,24 @@ static void translation_worker(translation_engine_t *engine) {
         }
         std::cerr << "[Translation] [ENCODE] Encoding success" << std::endl;
 
-        // Start decoder with BOS token
+        // Start decoder with decoder start token (for T5/MT5 encoder-decoder models)
         std::cerr << "[Translation] [DECODE] Initializing decoder..." << std::endl;
-        llama_token bos_token = llama_vocab_bos(llama_model_get_vocab(engine->model));
-        batch = llama_batch_get_one(&bos_token, 1);
+        llama_token decoder_start_token = llama_model_decoder_start_token(engine->model);
+
+        if (decoder_start_token < 0) {
+            std::cerr << "[Translation] [ERROR] No decoder start token found for this model" << std::endl;
+            if (engine->callback) {
+                engine->callback("[Translation Error: Invalid model]", req.user_data);
+            }
+            continue;
+        }
+
+        std::cerr << "[Translation] [DECODE] Using decoder start token: " << decoder_start_token << std::endl;
+        batch = llama_batch_get_one(&decoder_start_token, 1);
         if (llama_decode(engine->ctx, batch) != 0) {
             std::cerr << "[Translation] [ERROR] Initial decoder step failed" << std::endl;
             if (engine->callback) {
-                engine->callback("[Translation Error]", engine->user_data);
+                engine->callback("[Translation Error]", req.user_data);
             }
             continue;
         }
