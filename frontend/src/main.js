@@ -48,32 +48,49 @@ function createWindow() {
 }
 
 function startBackend() {
-    // Path to the C backend executable
-    const backendPath = path.join(__dirname, '../../build/visualia');
     const modelFile = process.env.VISUALIA_MODEL || 'whisper-base.gguf';
-    const modelPath = path.join(__dirname, '../../models', modelFile);
-    const language = process.env.VISUALIA_LANG || 'auto';  // Default to auto-detect
-    const targetLang = process.env.VISUALIA_TARGET_LANG || null;  // Translation target
-    const translationModel = process.env.VISUALIA_TRANSLATION_MODEL || 'mt5-small';  // Translation model
+    const language = process.env.VISUALIA_LANG || 'auto';
+    const targetLang = process.env.VISUALIA_TARGET_LANG || null;
+    const translationModel = process.env.VISUALIA_TRANSLATION_MODEL || 'mt5-small';
 
-    console.log('[Electron] Starting backend:', backendPath);
-    console.log('[Electron] Model:', modelPath);
-    console.log('[Electron] Language:', language);
-
-    // Build backend arguments
-    const args = ['-m', modelPath, '-l', language];
-
-    // Add translation if enabled
-    if (targetLang) {
-        const translationModelPath = path.join(__dirname, '../../models', `${translationModel}.gguf`);
-        console.log('[Electron] Translation enabled:', language, '→', targetLang);
-        console.log('[Electron] Translation model:', translationModelPath);
-        args.push('-t', targetLang);
-        args.push('-T', translationModelPath);
+    // Determine if we're on Windows and need to use WSL
+    const isWindows = process.platform === 'win32';
+    
+    let backendPath, modelPath, args;
+    
+    if (isWindows) {
+        // Convert Windows paths to WSL paths and run via wsl.exe
+        const wslProjectPath = '/mnt/c/Users/notre/LudicoMovie/LudicoMovie';
+        backendPath = 'wsl';
+        modelPath = `${wslProjectPath}/models/${modelFile}`;
+        
+        args = [
+            `${wslProjectPath}/build/visualia`,
+            '-m', modelPath,
+            '-l', language
+        ];
+        
+        if (targetLang) {
+            const translationModelPath = `${wslProjectPath}/models/${translationModel}.gguf`;
+            args.push('-t', targetLang, '-T', translationModelPath);
+        }
+    } else {
+        // Native Linux/macOS
+        backendPath = path.join(__dirname, '../../build/visualia');
+        modelPath = path.join(__dirname, '../../models', modelFile);
+        args = ['-m', modelPath, '-l', language];
+        
+        if (targetLang) {
+            const translationModelPath = path.join(__dirname, '../../models', `${translationModel}.gguf`);
+            args.push('-t', targetLang, '-T', translationModelPath);
+        }
     }
 
+    console.log('[Electron] Starting backend:', backendPath, args.join(' '));
+
     backendProcess = spawn(backendPath, args, {
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: false  // Don't use shell
     });
 
     // Initialize IPC handler
