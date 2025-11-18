@@ -21,6 +21,7 @@ struct translation_request {
     std::string text;
     std::string source_lang;
     std::string target_lang;
+    void *user_data;  // Per-request user data for callback
 };
 
 struct translation_engine_t {
@@ -211,10 +212,10 @@ static void translation_worker(translation_engine_t *engine) {
                   << duration.count() << "ms" << std::endl;
         std::cerr << "[Translation] [RESULT] " << result << std::endl;
 
-        // Invoke callback with result
+        // Invoke callback with result and request-specific user_data
         if (engine->callback) {
             std::cerr << "[Translation] [CALLBACK] Invoking callback..." << std::endl;
-            engine->callback(result.c_str(), engine->user_data);
+            engine->callback(result.c_str(), req.user_data);
             std::cerr << "[Translation] [CALLBACK] Callback completed" << std::endl;
         }
     }
@@ -280,7 +281,8 @@ bool translation_translate(
     translation_engine_t *engine,
     const char *text,
     const char *source_lang,
-    const char *target_lang
+    const char *target_lang,
+    void *user_data
 ) {
     if (!engine || !text || !source_lang || !target_lang) {
         return false;
@@ -290,6 +292,7 @@ bool translation_translate(
     req.text = text;
     req.source_lang = source_lang;
     req.target_lang = target_lang;
+    req.user_data = user_data;
 
     {
         std::lock_guard<std::mutex> lock(engine->queue_mutex);

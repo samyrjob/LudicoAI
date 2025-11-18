@@ -46,6 +46,7 @@ translation_engine_t* translation_init(
  * @param text Text to translate (UTF-8)
  * @param source_lang Source language code (e.g., "en", "fr", "auto")
  * @param target_lang Target language code (e.g., "en", "fr", "es")
+ * @param user_data User context to pass to callback for this request
  * @return true if translation request was queued successfully
  *
  * Note: Translation is asynchronous. Result will be delivered via callback.
@@ -54,7 +55,8 @@ bool translation_translate(
     translation_engine_t *engine,
     const char *text,
     const char *source_lang,
-    const char *target_lang
+    const char *target_lang,
+    void *user_data
 );
 
 /**

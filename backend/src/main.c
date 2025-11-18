@@ -75,7 +75,7 @@ static void on_transcription(const char *text, void *user_data) {
             char *text_copy = strdup(text);
             if (text_copy) {
                 const char *source_lang = g_source_lang ? g_source_lang : "auto";
-                translation_translate(g_translator, text_copy, source_lang, g_target_lang);
+                translation_translate(g_translator, text_copy, source_lang, g_target_lang, text_copy);
             }
         }
     }
