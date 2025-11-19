@@ -56,15 +56,15 @@ echo -e "${YELLOW}This requires:"
 echo "  1. Downloading the model from HuggingFace"
 echo "  2. Converting to GGUF format using llama.cpp tools"
 echo ""
-echo -e "${BLUE}Step 1: Install HuggingFace CLI${NC}"
+echo -e "${BLUE}Step 1: Install HuggingFace Hub${NC}"
 
-# Check if huggingface-cli is installed
-if ! command -v huggingface-cli &> /dev/null; then
-    echo "Installing huggingface-cli..."
-    pip3 install -U "huggingface_hub[cli]"
+# Check if huggingface_hub is installed
+if ! python3 -c "import huggingface_hub" &> /dev/null; then
+    echo "Installing huggingface_hub..."
+    pip3 install -U huggingface_hub
 fi
 
-echo -e "${GREEN}✓ HuggingFace CLI installed${NC}"
+echo -e "${GREEN}✓ HuggingFace Hub installed${NC}"
 echo ""
 
 # Download model
@@ -75,9 +75,14 @@ echo ""
 CACHE_DIR="$MODELS_DIR/huggingface_cache"
 mkdir -p "$CACHE_DIR"
 
-huggingface-cli download "$HF_REPO" \
-    --local-dir "$CACHE_DIR/$MODEL_NAME" \
-    --local-dir-use-symlinks False
+python3 -c "
+from huggingface_hub import snapshot_download
+snapshot_download(
+    repo_id='$HF_REPO',
+    local_dir='$CACHE_DIR/$MODEL_NAME',
+    local_dir_use_symlinks=False
+)
+"
 
 echo -e "${GREEN}✓ Model downloaded${NC}"
 echo ""
