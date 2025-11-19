@@ -332,19 +332,198 @@ static DWORD WINAPI audio_thread(LPVOID arg) {
 }
 
 audio_context_t* audio_init(audio_callback_t callback, void *user_data) {
-    /* WASAPI implementation - simplified for brevity */
-    snprintf(last_error, sizeof(last_error), "Windows WASAPI not fully implemented yet");
-    return NULL;
+    if (!callback) {
+        snprintf(last_error, sizeof(last_error), "Invalid callback");
+        return NULL;
+    }
+
+    audio_context_t *ctx = calloc(1, sizeof(audio_context_t));
+    if (!ctx) {
+        snprintf(last_error, sizeof(last_error), "Memory allocation failed");
+        return NULL;
+    }
+
+    ctx->callback = callback;
+    ctx->user_data = user_data;
+    ctx->running = false;
+    pthread_mutex_init(&ctx->lock, NULL);
+
+    HRESULT hr;
+
+    /* Initialize COM */
+    hr = CoInitialize(NULL);
+    if (FAILED(hr)) {
+        snprintf(last_error, sizeof(last_error), "COM initialization failed: 0x%08lx", hr);
+        free(ctx);
+        return NULL;
+    }
+
+    /* Create device enumerator */
+    const CLSID CLSID_MMDeviceEnumerator = {0xBCDE0395, 0xE52F, 0x467C, {0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E}};
+    const IID IID_IMMDeviceEnumerator = {0xA95664D2, 0x9614, 0x4F35, {0xA7, 0x46, 0xDE, 0x8D, 0xB6, 0x36, 0x17, 0xE6}};
+
+    hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL,
+                         &IID_IMMDeviceEnumerator, (void**)&ctx->enumerator);
+    if (FAILED(hr)) {
+        snprintf(last_error, sizeof(last_error), "Failed to create device enumerator: 0x%08lx", hr);
+        CoUninitialize();
+        free(ctx);
+        return NULL;
+    }
+
+    /* Get default audio capture device */
+    hr = ctx->enumerator->lpVtbl->GetDefaultAudioEndpoint(ctx->enumerator, eCapture, eConsole, &ctx->device);
+    if (FAILED(hr)) {
+        snprintf(last_error, sizeof(last_error), "Failed to get default capture device: 0x%08lx", hr);
+        ctx->enumerator->lpVtbl->Release(ctx->enumerator);
+        CoUninitialize();
+        free(ctx);
+        return NULL;
+    }
+
+    /* Activate audio client */
+    const IID IID_IAudioClient = {0x1CB9AD4C, 0xDBFA, 0x4c32, {0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2}};
+    hr = ctx->device->lpVtbl->Activate(ctx->device, &IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&ctx->audio_client);
+    if (FAILED(hr)) {
+        snprintf(last_error, sizeof(last_error), "Failed to activate audio client: 0x%08lx", hr);
+        ctx->device->lpVtbl->Release(ctx->device);
+        ctx->enumerator->lpVtbl->Release(ctx->enumerator);
+        CoUninitialize();
+        free(ctx);
+        return NULL;
+    }
+
+    /* Set up audio format (16kHz, mono, 16-bit PCM) */
+    WAVEFORMATEX wave_format = {0};
+    wave_format.wFormatTag = WAVE_FORMAT_PCM;
+    wave_format.nChannels = AUDIO_CHANNELS;
+    wave_format.nSamplesPerSec = AUDIO_SAMPLE_RATE;
+    wave_format.wBitsPerSample = 16;
+    wave_format.nBlockAlign = wave_format.nChannels * wave_format.wBitsPerSample / 8;
+    wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec * wave_format.nBlockAlign;
+    wave_format.cbSize = 0;
+
+    /* Initialize audio client */
+    REFERENCE_TIME buffer_duration = 10000000;  /* 1 second in 100-nanosecond units */
+    hr = ctx->audio_client->lpVtbl->Initialize(ctx->audio_client, AUDCLNT_SHAREMODE_SHARED,
+                                               0, buffer_duration, 0, &wave_format, NULL);
+    if (FAILED(hr)) {
+        snprintf(last_error, sizeof(last_error), "Failed to initialize audio client: 0x%08lx", hr);
+        ctx->audio_client->lpVtbl->Release(ctx->audio_client);
+        ctx->device->lpVtbl->Release(ctx->device);
+        ctx->enumerator->lpVtbl->Release(ctx->enumerator);
+        CoUninitialize();
+        free(ctx);
+        return NULL;
+    }
+
+    /* Get capture client */
+    const IID IID_IAudioCaptureClient = {0xC8ADBD64, 0xE71E, 0x48a0, {0xA4, 0xDE, 0x18, 0x5C, 0x39, 0x5C, 0xD3, 0x17}};
+    hr = ctx->audio_client->lpVtbl->GetService(ctx->audio_client, &IID_IAudioCaptureClient, (void**)&ctx->capture_client);
+    if (FAILED(hr)) {
+        snprintf(last_error, sizeof(last_error), "Failed to get capture client: 0x%08lx", hr);
+        ctx->audio_client->lpVtbl->Release(ctx->audio_client);
+        ctx->device->lpVtbl->Release(ctx->device);
+        ctx->enumerator->lpVtbl->Release(ctx->enumerator);
+        CoUninitialize();
+        free(ctx);
+        return NULL;
+    }
+
+    /* Create stop event */
+    ctx->stop_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (!ctx->stop_event) {
+        snprintf(last_error, sizeof(last_error), "Failed to create stop event");
+        ctx->capture_client->lpVtbl->Release(ctx->capture_client);
+        ctx->audio_client->lpVtbl->Release(ctx->audio_client);
+        ctx->device->lpVtbl->Release(ctx->device);
+        ctx->enumerator->lpVtbl->Release(ctx->enumerator);
+        CoUninitialize();
+        free(ctx);
+        return NULL;
+    }
+
+    fprintf(stderr, "[Audio] Initialized (Windows WASAPI)\n");
+    return ctx;
 }
 
 bool audio_start(audio_context_t *ctx) {
-    return false;
+    if (!ctx) return false;
+
+    /* Start audio client */
+    HRESULT hr = ctx->audio_client->lpVtbl->Start(ctx->audio_client);
+    if (FAILED(hr)) {
+        snprintf(last_error, sizeof(last_error), "Failed to start audio client: 0x%08lx", hr);
+        return false;
+    }
+
+    /* Create capture thread */
+    ctx->running = true;
+    ctx->thread = CreateThread(NULL, 0, audio_thread, ctx, 0, NULL);
+    if (!ctx->thread) {
+        snprintf(last_error, sizeof(last_error), "Failed to create audio thread");
+        ctx->audio_client->lpVtbl->Stop(ctx->audio_client);
+        ctx->running = false;
+        return false;
+    }
+
+    fprintf(stderr, "[Audio] Started recording\n");
+    return true;
 }
 
 void audio_stop(audio_context_t *ctx) {
+    if (!ctx) return;
+
+    ctx->running = false;
+
+    /* Signal thread to stop */
+    if (ctx->stop_event) {
+        SetEvent(ctx->stop_event);
+    }
+
+    /* Wait for thread to finish */
+    if (ctx->thread) {
+        WaitForSingleObject(ctx->thread, INFINITE);
+        CloseHandle(ctx->thread);
+        ctx->thread = NULL;
+    }
+
+    /* Stop audio client */
+    if (ctx->audio_client) {
+        ctx->audio_client->lpVtbl->Stop(ctx->audio_client);
+    }
+
+    fprintf(stderr, "[Audio] Stopped recording\n");
 }
 
 void audio_cleanup(audio_context_t *ctx) {
+    if (!ctx) return;
+
+    audio_stop(ctx);
+
+    /* Release COM objects */
+    if (ctx->capture_client) {
+        ctx->capture_client->lpVtbl->Release(ctx->capture_client);
+    }
+    if (ctx->audio_client) {
+        ctx->audio_client->lpVtbl->Release(ctx->audio_client);
+    }
+    if (ctx->device) {
+        ctx->device->lpVtbl->Release(ctx->device);
+    }
+    if (ctx->enumerator) {
+        ctx->enumerator->lpVtbl->Release(ctx->enumerator);
+    }
+
+    /* Close event handle */
+    if (ctx->stop_event) {
+        CloseHandle(ctx->stop_event);
+    }
+
+    pthread_mutex_destroy(&ctx->lock);
+    CoUninitialize();
+    free(ctx);
+    fprintf(stderr, "[Audio] Cleanup complete\n");
 }
 
 #else
