@@ -25,7 +25,7 @@ static time_t g_last_lang_check = 0;
 
 /* Configuration */
 #define DEFAULT_MODEL_PATH "models/whisper-base.gguf"
-#define DEFAULT_TRANSLATION_MODEL "models/mt5-small.gguf"
+#define DEFAULT_TRANSLATION_MODEL "models/madlad400-10b-mt.gguf"
 #define DEFAULT_LANGUAGE NULL  /* Auto-detect language */
 #define AUDIO_CHUNK_SIZE (AUDIO_SAMPLE_RATE * 3)  /* 3 seconds */
 

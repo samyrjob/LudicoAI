@@ -197,7 +197,49 @@
             background: #ef4444;
         }
 
-        /* Subtitle Box */
+        /* Subtitle Container */
+        #subtitle-container {
+            position: fixed;
+            bottom: 80px;
+            right: 50%;
+            display: flex;
+            flex-direction: row;
+            gap: 16px;
+            align-items: center;
+            justify-content: flex-end;
+            pointer-events: none;
+            max-width: 50%;
+        }
+
+        /* Individual Subtitle Bubble */
+        .subtitle-bubble {
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 16px;
+            padding: 20px 28px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            border: none;
+            max-width: 600px;
+            flex-shrink: 0;
+            opacity: 1;
+        }
+
+        .subtitle-bubble.newest {
+            /* Newest bubble - no special styling, just a marker class */
+        }
+
+        .subtitle-bubble.older-1 {
+            /* Keep full opacity and size */
+        }
+
+        .subtitle-bubble.older-2 {
+            /* Keep full opacity and size */
+        }
+
+        .subtitle-bubble.older-3 {
+            /* Keep full opacity and size */
+        }
+
+        /* Legacy single bubble mode */
         #subtitle-box {
             background: rgba(0, 0, 0, 0.9);
             border-radius: 16px;
@@ -239,6 +281,7 @@
             line-height: 1.5;
             text-align: left;
             min-height: 36px;
+            transition: font-size 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         #translation-text {
@@ -246,6 +289,7 @@
             border-top: 1px solid rgba(255, 255, 255, 0.1);
             padding-top: 16px;
         }
+
 
         @keyframes pulse {
             0%, 100% {
@@ -381,13 +425,17 @@
                     <input type="checkbox" id="translation-toggle">
                     <span class="slider"></span>
                 </label>
-            </div>
+                </div>
 
-            <div class="control-group">
+                <div class="control-group">
+                <span class="control-label">Caption History</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="caption-history-toggle">
+
                 <span class="control-label">Show Sound Captions</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="sound-captions-toggle" checked>
-                    <span class="slider"></span>
+                <span class="slider"></span>
                 </label>
             </div>
 
@@ -432,6 +480,10 @@
             <span id="status-text">Initializing...</span>
         </div>
 
+        <!-- Caption history container (for multi-bubble mode) -->
+        <div id="subtitle-container"></div>
+
+        <!-- Legacy single bubble (for single caption mode) -->
         <div id="subtitle-box" class="hidden">
             <div id="subtitle-content">
                 <div class="subtitle-row">

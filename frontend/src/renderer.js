@@ -7,8 +7,7 @@ const translationText = document.getElementById('translation-text');
 const translationRow = document.getElementById('translation-row');
 const statusElement = document.getElementById('status');
 const statusText = document.getElementById('status-text');
-const statusDot = document.getElementById('status-dot');
-
+n
 // Control elements
 const modelSelect = document.getElementById('model-select');
 const sourceLangSelect = document.getElementById('source-lang-select');
@@ -17,6 +16,7 @@ const translationToggle = document.getElementById('translation-toggle');
 const targetLangGroup = document.getElementById('target-lang-group');
 const translationModelSelect = document.getElementById('translation-model-select');
 const translationModelGroup = document.getElementById('translation-model-group');
+const captionHistoryToggle = document.getElementById('caption-history-toggle');
 const soundCaptionsToggle = document.getElementById('sound-captions-toggle');
 const controls = document.getElementById('controls');
 const closeSettingsBtn = document.getElementById('close-settings');
@@ -47,9 +47,15 @@ let currentSettings = {
     sourceLang: 'auto',
     targetLang: getSmartTargetLang('auto'),
     translationEnabled: false,
+    captionHistory: false
     translationModel: 'madlad400-10b-mt',
     showSoundCaptions: true
+
 };
+
+// Caption history state
+const MAX_CAPTION_HISTORY = 4; // Maximum number of caption bubbles to show
+let captionHistory = []; // Array of caption objects {original, translation}
 
 // Translation cache
 const translationCache = new Map();
@@ -64,10 +70,13 @@ function loadSettings() {
             sourceLangSelect.value = currentSettings.sourceLang;
             targetLangSelect.value = currentSettings.targetLang;
             translationToggle.checked = currentSettings.translationEnabled || false;
+
             translationModelSelect.value = currentSettings.translationModel || 'madlad400-10b-mt';
             soundCaptionsToggle.checked = currentSettings.showSoundCaptions !== false;
+            captionHistoryToggle.checked = currentSettings.captionHistory || false;
 
-            // Show/hide target language dropdown based on toggle
+            // Show/hide target language dro
+            pdown based on toggle
             targetLangGroup.style.display = translationToggle.checked ? 'flex' : 'none';
             translationModelGroup.style.display = translationToggle.checked ? 'flex' : 'none';
         } catch (e) {
@@ -100,32 +109,192 @@ function cacheTranslation(text, targetLang, translation) {
     }
 }
 
-// Update subtitle display
-function showSubtitle(text) {
-    originalText.textContent = text;
-    subtitleBox.classList.remove('hidden');
-    subtitleBox.classList.add('fade-in');
+// Caption history functions
+function addCaptionToBubbleHistory(text, translation = null) {
+    // Add new caption to the beginning of the array
+    captionHistory.unshift({ original: text, translation: translation });
 
-    // Show translation row if enabled (translation will come via IPC)
-    if (currentSettings.translationEnabled && currentSettings.targetLang !== 'none') {
-        translationRow.style.display = 'flex';
-        translationText.textContent = 'Translating...';
-    } else {
-        translationRow.style.display = 'none';
+    // Remove oldest if exceeding limit
+    if (captionHistory.length > MAX_CAPTION_HISTORY) {
+        captionHistory.pop();
     }
 
-    // Clear existing timeout
+    // Render all bubbles
+    renderCaptionBubbles();
+}
+
+function renderCaptionBubbles() {
+    // Get existing bubbles
+    const existingBubbles = Array.from(subtitleContainer.querySelectorAll('.subtitle-bubble'));
+
+    // Reverse iteration: oldest to newest (for horizontal left-to-right display)
+    const reversedHistory = [...captionHistory].reverse();
+
+    // Update or create bubbles for each caption
+    reversedHistory.forEach((caption, displayIndex) => {
+        // Original index in captionHistory (for age calculation)
+        const historyIndex = captionHistory.length - 1 - displayIndex;
+
+        let bubble = existingBubbles[displayIndex];
+
+        if (!bubble) {
+            // Create new bubble
+            bubble = createCaptionBubble(caption, historyIndex);
+
+            // Add to DOM - no animations, just appears
+            subtitleContainer.appendChild(bubble);
+        } else {
+            // Update existing bubble
+            updateCaptionBubble(bubble, caption, historyIndex);
+        }
+
+        // Apply aging classes to all bubbles
+        bubble.classList.remove('newest', 'older-1', 'older-2', 'older-3');
+        if (historyIndex === 0) {
+            bubble.classList.add('newest');
+        } else {
+            bubble.classList.add(`older-${Math.min(historyIndex, 3)}`);
+        }
+    });
+
+    // Center the newest bubble by shifting container by half its width
+    const newestBubble = subtitleContainer.querySelector('.subtitle-bubble.newest');
+    if (newestBubble) {
+        const bubbleWidth = newestBubble.offsetWidth;
+        subtitleContainer.style.transform = `translateX(${bubbleWidth / 2}px)`;
+    }
+
+    // Remove excess bubbles immediately
+    for (let i = reversedHistory.length; i < existingBubbles.length; i++) {
+        const bubbleToRemove = existingBubbles[i];
+        if (bubbleToRemove.parentNode) {
+            bubbleToRemove.parentNode.removeChild(bubbleToRemove);
+        }
+    }
+
+    // Auto-hide oldest bubbles after timeout
     if (hideTimeout) {
         clearTimeout(hideTimeout);
     }
 
-    // Hide after 5 seconds of no new text
     hideTimeout = setTimeout(() => {
-        subtitleBox.classList.add('hidden');
+        // Clear all bubbles immediately
+        captionHistory = [];
+        subtitleContainer.innerHTML = '';
+        subtitleContainer.style.transform = '';
     }, 5000);
 }
 
-// Update status with fade transition
+function createCaptionBubble(caption, index) {
+    const bubble = document.createElement('div');
+    bubble.className = 'subtitle-bubble';
+    bubble.dataset.original = caption.original;
+
+    // Create content structure
+    const contentDiv = document.createElement('div');
+    contentDiv.style.display = 'flex';
+    contentDiv.style.flexDirection = 'column';
+    contentDiv.style.gap = '12px';
+
+    // Original text row (no label)
+    const originalRow = document.createElement('div');
+    const originalTextDiv = document.createElement('div');
+    originalTextDiv.textContent = caption.original;
+    originalTextDiv.className = 'subtitle-text original-caption-text';
+    originalRow.appendChild(originalTextDiv);
+    contentDiv.appendChild(originalRow);
+
+    // Translation row (if available and enabled)
+    if (currentSettings.translationEnabled) {
+        const translationRow = document.createElement('div');
+        translationRow.className = 'translation-caption-row';
+        translationRow.style.borderTop = '1px solid rgba(255, 255, 255, 0.1)';
+        translationRow.style.paddingTop = '12px';
+        translationRow.style.display = caption.translation ? 'block' : 'none';
+
+        const translationLabel = document.createElement('span');
+        translationLabel.textContent = 'Translation';
+        translationLabel.className = 'subtitle-label';
+
+        const translationTextDiv = document.createElement('div');
+        translationTextDiv.textContent = caption.translation || 'Translating...';
+        translationTextDiv.className = 'subtitle-text translation-caption-text';
+        translationTextDiv.style.color = '#4ade80';
+
+        translationRow.appendChild(translationLabel);
+        translationRow.appendChild(translationTextDiv);
+        contentDiv.appendChild(translationRow);
+    }
+
+    bubble.appendChild(contentDiv);
+    return bubble;
+}
+
+function updateCaptionBubble(bubble, caption, index) {
+    // Update text content
+    const originalTextDiv = bubble.querySelector('.original-caption-text');
+    if (originalTextDiv) {
+        originalTextDiv.textContent = caption.original;
+    }
+
+    // Update translation if exists
+    if (currentSettings.translationEnabled) {
+        const translationRow = bubble.querySelector('.translation-caption-row');
+        const translationTextDiv = bubble.querySelector('.translation-caption-text');
+
+        if (translationRow && translationTextDiv) {
+            if (caption.translation) {
+                translationRow.style.display = 'block';
+                translationTextDiv.textContent = caption.translation;
+            } else {
+                translationRow.style.display = 'none';
+            }
+        }
+    }
+}
+
+function updateCaptionTranslation(originalText, translation) {
+    // Find the caption in history and update its translation
+    const caption = captionHistory.find(c => c.original === originalText);
+    if (caption) {
+        caption.translation = translation;
+        renderCaptionBubbles();
+    }
+}
+
+// Update subtitle display
+function showSubtitle(text) {
+    if (currentSettings.captionHistory) {
+        // Multi-bubble mode
+        addCaptionToBubbleHistory(text);
+        subtitleBox.classList.add('hidden');
+    } else {
+        // Single bubble mode (legacy)
+        subtitleContainer.innerHTML = '';
+        originalText.textContent = text;
+        subtitleBox.classList.remove('hidden');
+        subtitleBox.classList.add('fade-in');
+
+        // Show translation row if enabled (translation will come via IPC)
+        if (currentSettings.translationEnabled && currentSettings.targetLang !== 'none') {
+            translationRow.style.display = 'flex';
+            translationText.textContent = 'Translating...';
+        } else {
+            translationRow.style.display = 'none';
+        }
+
+        // Clear existing timeout
+        if (hideTimeout) {
+            clearTimeout(hideTimeout);
+        }
+
+        // Hide after 5 seconds of no new text
+        hideTimeout = setTimeout(() => {
+            subtitleBox.classList.add('hidden');
+        }, 5000);
+    }
+}
+
 function updateStatus(message, isError = false) {
     // Skip if currently showing hint
     if (isShowingHint) {
@@ -197,6 +366,23 @@ translationToggle.addEventListener('change', (e) => {
             targetLang: null,
             translationModel: null
         });
+    }
+});
+
+// Handle caption history toggle
+captionHistoryToggle.addEventListener('change', (e) => {
+    currentSettings.captionHistory = e.target.checked;
+    saveSettings();
+
+    if (e.target.checked) {
+        updateStatus('Caption history enabled');
+        // Clear old single bubble
+        subtitleBox.classList.add('hidden');
+    } else {
+        updateStatus('Caption history disabled');
+        // Clear caption history bubbles
+        captionHistory = [];
+        subtitleContainer.innerHTML = '';
     }
 });
 
@@ -290,13 +476,18 @@ ipcRenderer.on('transcription', (event, data) => {
 ipcRenderer.on('translation', (event, data) => {
     console.log('[Renderer] Translation:', data.original, '→', data.text);
 
-    // Update translation display
-    if (translationRow.style.display === 'flex') {
-        translationText.textContent = data.text;
+    if (currentSettings.captionHistory) {
+        // Update translation in caption history
+        updateCaptionTranslation(data.original, data.text);
+    } else {
+        // Update translation display in single bubble mode
+        if (translationRow.style.display === 'flex') {
+            translationText.textContent = data.text;
 
-        // Cache the translation
-        if (currentSettings.targetLang) {
-            cacheTranslation(data.original, currentSettings.targetLang, data.text);
+            // Cache the translation
+            if (currentSettings.targetLang) {
+                cacheTranslation(data.original, currentSettings.targetLang, data.text);
+            }
         }
     }
 });

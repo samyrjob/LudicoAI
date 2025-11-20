@@ -51,7 +51,7 @@ function startBackend() {
     const modelFile = process.env.VISUALIA_MODEL || 'whisper-base.gguf';
     const language = process.env.VISUALIA_LANG || 'auto';
     const targetLang = process.env.VISUALIA_TARGET_LANG || null;
-    const translationModel = process.env.VISUALIA_TRANSLATION_MODEL || 'mt5-small';
+    const translationModel = process.env.VISUALIA_TRANSLATION_MODEL || 'madlad400-10b-mt';
 
     // Determine if we're on Windows and need to use WSL
     const isWindows = process.platform === 'win32';
@@ -235,7 +235,7 @@ ipcMain.on('change-translation', (event, config) => {
 
     if (config.enabled && config.targetLang && config.targetLang !== 'none') {
         process.env.VISUALIA_TARGET_LANG = config.targetLang;
-        process.env.VISUALIA_TRANSLATION_MODEL = config.translationModel || 'mt5-small';
+        process.env.VISUALIA_TRANSLATION_MODEL = config.translationModel || 'madlad400-10b-mt';
     } else {
         delete process.env.VISUALIA_TARGET_LANG;
         delete process.env.VISUALIA_TRANSLATION_MODEL;

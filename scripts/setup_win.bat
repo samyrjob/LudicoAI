@@ -57,8 +57,8 @@ if %errorlevel% neq 0 (
     set MISSING_DEPS=!MISSING_DEPS! git
     set /a ERRORS+=1
 ) else (
-    for /f "tokens=3" %%v in ('git --version') do (
-        echo [OK] Git %%v
+    for /f "tokens=*" %%v in ('git --version') do (
+        echo [OK] %%v
     )
 )
 
@@ -69,7 +69,7 @@ if %errorlevel% neq 0 (
     set MISSING_DEPS=!MISSING_DEPS! nodejs
     set /a ERRORS+=1
 ) else (
-    for /f %%v in ('node --version') do (
+    for /f "tokens=*" %%v in ('node --version') do (
         echo [OK] Node.js %%v
     )
 )
@@ -79,14 +79,18 @@ where python >nul 2>nul
 if %errorlevel% neq 0 (
     echo [!] Python not found (optional, needed for translation)
 ) else (
-    for /f "tokens=2" %%v in ('python --version 2^>^&1') do (
-        echo [OK] Python %%v
+    for /f "tokens=*" %%v in ('python --version 2^>^&1') do (
+        echo [OK] %%v
     )
 )
 
 REM ========================================================================
 REM [2/7] Install Missing Dependencies
 REM ========================================================================
+echo.
+echo [2/7] Checking for missing dependencies...
+echo.
+
 if %ERRORS% gtr 0 (
     echo.
     echo Missing dependencies detected: %MISSING_DEPS%

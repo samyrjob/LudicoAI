@@ -254,7 +254,7 @@ translation_engine_t* translation_init(
 
     // Load model
     llama_model_params model_params = llama_model_default_params();
-    model_params.n_gpu_layers = 99;  // Use GPU if available
+    model_params.n_gpu_layers = 16;  // Offload 16 layers to GPU (reduce if still OOM)
 
     engine->model = llama_model_load_from_file(model_path, model_params);
     if (!engine->model) {
