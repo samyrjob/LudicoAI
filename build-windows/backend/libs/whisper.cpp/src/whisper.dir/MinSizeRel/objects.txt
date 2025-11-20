@@ -1,0 +1,1 @@
+C:/Users/notre/LudicoMovie/LudicoMovie/build-windows/backend/libs/whisper.cpp/src/whisper.dir/MinSizeRel/whisper.obj

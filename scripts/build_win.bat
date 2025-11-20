@@ -31,7 +31,7 @@ exit /b 1
 :args_done
 
 echo ========================================
-echo Building VisualIA
+echo Building VisualIA (Windows)
 echo ========================================
 echo.
 
@@ -41,15 +41,26 @@ REM ========================================================================
 echo [1/3] Building C backend (%BUILD_TYPE% mode)...
 echo.
 
+REM Use Windows-specific build directory
+set BUILD_DIR=build-windows
+
 REM Clean build directory if requested
 if %CLEAN_BUILD%==1 (
-    echo Cleaning build directory...
-    if exist build rmdir /s /q build
+    echo Cleaning Windows build directory...
+    if exist %BUILD_DIR% rmdir /s /q %BUILD_DIR%
+)
+
+REM Preserve Linux build if it exists in "build"
+if exist "build" (
+    if not exist "build-linux" (
+        echo [INFO] Found existing Linux build, preserving as build-linux...
+        ren build build-linux
+    )
 )
 
 REM Create build directory
-if not exist build mkdir build
-cd build
+if not exist %BUILD_DIR% mkdir %BUILD_DIR%
+cd %BUILD_DIR%
 
 REM Detect Visual Studio version
 set VS_GENERATOR=
@@ -75,6 +86,7 @@ if defined VS_VERSION (
 )
 
 echo Using: %VS_GENERATOR%
+echo Build directory: %BUILD_DIR%
 echo.
 
 REM Configure with CMake
@@ -109,11 +121,11 @@ if %errorlevel% neq 0 (
 cd ..
 
 REM Verify executable exists
-if exist "build\%BUILD_TYPE%\visualia.exe" (
-    for %%I in ("build\%BUILD_TYPE%\visualia.exe") do set SIZE=%%~zI
+if exist "%BUILD_DIR%\Release\visualia.exe" (
+    for %%I in ("%BUILD_DIR%\%BUILD_TYPE%\visualia.exe") do set SIZE=%%~zI
     set /a SIZE_KB=!SIZE! / 1024
     echo [OK] Backend built successfully (!SIZE_KB! KB)
-    echo     build\%BUILD_TYPE%\visualia.exe
+    echo     %BUILD_DIR%\%BUILD_TYPE%\visualia.exe
 ) else (
     echo [ERROR] Backend executable not found
     exit /b 1
@@ -212,9 +224,16 @@ echo Build Complete!
 echo ========================================
 echo.
 echo Build artifacts:
-echo   Backend:  build\%BUILD_TYPE%\visualia.exe
+echo   Backend:  %BUILD_DIR%\%BUILD_TYPE%\visualia.exe
 echo   Frontend: frontend\node_modules\
 echo.
+
+REM Show preserved Linux build info
+if exist "build-linux" (
+    echo [INFO] Linux build preserved in: build-linux\
+    echo.
+)
+
 echo WARNING: Windows audio capture (WASAPI) is not implemented yet.
 echo The backend will not capture audio on Windows.
 echo.

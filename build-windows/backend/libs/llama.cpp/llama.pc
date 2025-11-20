@@ -1,0 +1,10 @@
+prefix=C:/Program Files (x86)/visualia
+exec_prefix=C:/Program Files (x86)/visualia
+libdir=C:/Program Files (x86)/visualia/lib
+includedir=C:/Program Files (x86)/visualia/include
+
+Name: llama
+Description: Port of Facebook's LLaMA model in C/C++
+Version: 0.0.7090
+Libs: -L${libdir} -lggml -lggml-base -lllama
+Cflags: -I${includedir}
