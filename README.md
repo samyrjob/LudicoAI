@@ -9,7 +9,7 @@ Real-time AI assistant with live speech transcription, translation, and overlay 
 - **Live Translation**: Local T5-based translation (no cloud APIs)
 - **Overlay Display**: Transparent, always-on-top subtitle window
 - **GPU Accelerated**: Metal support for Apple Silicon
-- **Cross-platform**: macOS, Linux (Windows audio WIP)
+- **Cross-platform**: macOS, Linux, Windows
 
 ## Quick Start
 
@@ -222,10 +222,10 @@ NODE_ENV=development npm start --prefix frontend
 ## Contributing
 
 Contributions welcome! Areas needing help:
-- Windows WASAPI audio implementation
 - Screen capture integration
 - LLaVA vision support
 - UI improvements
+- GPU acceleration for Windows/Linux
 
 See [DOCUMENTATION.md](DOCUMENTATION.md) for development guide.
 
@@ -238,6 +238,9 @@ System Preferences → Security & Privacy → Microphone
 
 # Linux: Check PulseAudio
 pactl list sources
+
+# Windows: Grant microphone permission
+Settings → Privacy → Microphone
 ```
 
 ### Model Not Loading

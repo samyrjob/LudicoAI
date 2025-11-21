@@ -42,7 +42,7 @@ VisualIA is a cross-platform desktop application that provides real-time speech-
 - **Overlay Display**: Transparent, always-on-top subtitle window
 - **Multiple Models**: Switch between base/small/medium/large Whisper models
 - **GPU Acceleration**: Metal support for Apple Silicon
-- **Cross-platform Audio**: macOS (CoreAudio), Linux (PulseAudio), Windows (stub)
+- **Cross-platform Audio**: macOS (CoreAudio), Linux (PulseAudio), Windows (WASAPI)
 
 ### 🚧 Planned
 - **Screen Understanding**: Visual context with LLaVA
@@ -167,7 +167,7 @@ VisualIA/
 - Platform abstraction for audio input
 - macOS: AudioQueue from CoreAudio
 - Linux: PulseAudio simple API
-- Windows: WASAPI stub (TODO)
+- Windows: WASAPI with COM interfaces
 - Converts PCM int16 → float32 for Whisper
 - Buffers 3-second chunks with 1-second overlap
 
@@ -432,7 +432,8 @@ sudo apt-get install libpulse-dev cmake build-essential
 ```bash
 # Install Visual Studio 2019+ with C++ tools
 # CMake and Node.js from official websites
-# WASAPI audio capture not yet implemented
+# WASAPI audio capture is fully implemented
+# Grant microphone permission in Windows Settings
 ```
 
 ---
@@ -1071,10 +1072,21 @@ pactl set-default-source alsa_input.pci-0000_00_1f.3.analog-stereo
 
 #### Windows
 
-**WASAPI Not Implemented:**
-- Audio capture not yet supported on Windows
-- Contribution welcome!
-- Use WSL2 with PulseAudio as workaround
+**Microphone Permission:**
+```bash
+# Grant permission in Windows Settings
+Settings → Privacy → Microphone
+# Enable for the application
+```
+
+**Audio Device Errors:**
+```powershell
+# List available audio devices (PowerShell)
+Get-AudioDevice -List
+
+# Check default recording device
+Get-AudioDevice -RecordingMute
+```
 
 ### Error Codes
 
@@ -1139,7 +1151,8 @@ MIT License - See LICENSE file for details
 - ✅ Electron overlay UI
 - ✅ Multiple model support
 - ✅ GPU acceleration (Metal)
-- ✅ Cross-platform audio (macOS, Linux)
+- ✅ Cross-platform audio (macOS, Linux, Windows)
+- ✅ Windows WASAPI audio capture implementation
 
 ### v0.2.0
 - Added T5 translation engine

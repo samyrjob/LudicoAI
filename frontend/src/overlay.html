@@ -34,16 +34,63 @@
         /* Controls Panel */
         #controls {
             position: fixed;
-            top: 20px;
+            top: 66px;
             right: 20px;
             display: flex;
-            gap: 12px;
+            gap: 10px;
             flex-direction: column;
             align-items: flex-end;
             -webkit-app-region: no-drag;
             z-index: 9999;
-            max-height: calc(100vh - 200px);
-            overflow-y: auto;
+            max-height: calc(100vh - 500px);
+            overflow: visible;
+            opacity: 0;
+            filter: blur(8px);
+            pointer-events: none;
+            transition: opacity 0.3s ease-in-out, filter 0.3s ease-in-out;
+        }
+
+        #controls.show {
+            opacity: 1;
+            filter: blur(0px);
+            pointer-events: auto;
+        }
+
+        #controls.hidden {
+            opacity: 0;
+            filter: blur(8px);
+            pointer-events: none;
+        }
+
+        #close-settings {
+            position: absolute;
+            top: -9px;
+            right: -9px;
+            width: 18px;
+            height: 18px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0;
+            transition: all 0.2s ease;
+            -webkit-app-region: no-drag;
+            z-index: 10;
+        }
+
+        #controls:hover #close-settings {
+            opacity: 0.6;
+        }
+
+        #close-settings:hover {
+            opacity: 1 !important;
+            background: rgba(255, 255, 255, 0.2);
         }
 
         .control-group {
@@ -99,19 +146,38 @@
             padding: 10px 16px;
             border-radius: 12px;
             font-size: 12px;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
             border: none;
             position: fixed;
-            bottom: 20px;
+            top: 20px;
             right: 20px;
             z-index: 10000;
+            cursor: pointer;
+            -webkit-app-region: no-drag;
+        }
+
+        #status-text {
+            transition: opacity 0.2s ease;
+            white-space: nowrap;
+        }
+
+        #status.hint-mode {
+            color: #ffffff;
         }
 
         #status.error {
             color: #ef4444;
+        }
+
+        #status-text {
+            transition: opacity 0.2s ease;
+        }
+
+        #status-text.fade-out {
+            opacity: 0;
         }
 
         #status-dot {
@@ -120,13 +186,60 @@
             border-radius: 50%;
             background: #4ade80;
             animation: pulse 2s ease-in-out infinite;
+            transition: opacity 0.2s ease;
+        }
+
+        #status-dot.hidden {
+            display: none;
         }
 
         #status.error #status-dot {
             background: #ef4444;
         }
 
-        /* Subtitle Box */
+        /* Subtitle Container */
+        #subtitle-container {
+            position: fixed;
+            bottom: 80px;
+            right: 50%;
+            display: flex;
+            flex-direction: row;
+            gap: 16px;
+            align-items: center;
+            justify-content: flex-end;
+            pointer-events: none;
+            max-width: 50%;
+        }
+
+        /* Individual Subtitle Bubble */
+        .subtitle-bubble {
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 16px;
+            padding: 20px 28px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            border: none;
+            max-width: 600px;
+            flex-shrink: 0;
+            opacity: 1;
+        }
+
+        .subtitle-bubble.newest {
+            /* Newest bubble - no special styling, just a marker class */
+        }
+
+        .subtitle-bubble.older-1 {
+            /* Keep full opacity and size */
+        }
+
+        .subtitle-bubble.older-2 {
+            /* Keep full opacity and size */
+        }
+
+        .subtitle-bubble.older-3 {
+            /* Keep full opacity and size */
+        }
+
+        /* Legacy single bubble mode */
         #subtitle-box {
             background: rgba(0, 0, 0, 0.9);
             border-radius: 16px;
@@ -168,6 +281,7 @@
             line-height: 1.5;
             text-align: left;
             min-height: 36px;
+            transition: font-size 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         #translation-text {
@@ -175,6 +289,7 @@
             border-top: 1px solid rgba(255, 255, 255, 0.1);
             padding-top: 16px;
         }
+
 
         @keyframes pulse {
             0%, 100% {
@@ -259,6 +374,7 @@
 <body>
     <div id="container">
         <div id="controls">
+            <button id="close-settings" title="Close settings">×</button>
             <div class="control-group">
                 <span class="control-label">Model</span>
                 <select id="model-select">
@@ -309,6 +425,22 @@
                     <input type="checkbox" id="translation-toggle">
                     <span class="slider"></span>
                 </label>
+                </div>
+
+                <div class="control-group">
+                <span class="control-label">Caption History</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="caption-history-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="control-group">
+                <span class="control-label">Show Sound Captions</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="sound-captions-toggle" checked>
+                    <span class="slider"></span>
+                </label>
             </div>
 
             <div class="control-group" id="target-lang-group" style="display: none;">
@@ -336,9 +468,12 @@
             <div class="control-group" id="translation-model-group" style="display: none;">
                 <span class="control-label">Translation Model</span>
                 <select id="translation-model-select">
-                    <option value="mt5-small">MT5-Small (300MB, Fast)</option>
-                    <option value="mt5-base">MT5-Base (580MB, Better)</option>
-                    <option value="mt5-large">MT5-Large (1.2GB, Best)</option>
+                    <option value="madlad400-3b-mt">MADLAD-400-3B (1.7GB, Good)</option>
+                    <option value="madlad400-7b-mt">MADLAD-400-7B (4GB, Better)</option>
+                    <option value="madlad400-10b-mt">MADLAD-400-10B (20GB, Best)</option>
+                    <option value="mt5-small">MT5-Small (300MB, Not for translation)</option>
+                    <option value="mt5-base">MT5-Base (580MB, Not for translation)</option>
+                    <option value="mt5-large">MT5-Large (1.2GB, Not for translation)</option>
                 </select>
             </div>
         </div>
@@ -349,6 +484,10 @@
             <span id="status-text">Initializing...</span>
         </div>
 
+        <!-- Caption history container (for multi-bubble mode) -->
+        <div id="subtitle-container"></div>
+
+        <!-- Legacy single bubble (for single caption mode) -->
         <div id="subtitle-box" class="hidden">
             <div id="subtitle-content">
                 <div class="subtitle-row">

@@ -69,7 +69,7 @@ elseif(PLATFORM_LINUX)
     target_include_directories(visualia PRIVATE ${PULSEAUDIO_INCLUDE_DIRS})
     target_link_libraries(visualia PRIVATE ${PULSEAUDIO_LIBRARIES})
 elseif(PLATFORM_WINDOWS)
-    target_link_libraries(visualia PRIVATE winmm)
+    target_link_libraries(visualia PRIVATE ole32 winmm)
 endif()
 
 # Threading
