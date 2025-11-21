@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\notre\LudicoMovie\LudicoMovie\backend\libs\whisper.cpp\src\whisper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\notre\LudicoMovie\LudicoMovie\backend\libs\whisper.cpp\include\whisper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\notre\LudicoMovie\LudicoMovie\backend\libs\whisper.cpp\src\whisper-arch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\notre\LudicoMovie\LudicoMovie\backend\libs\whisper.cpp\src\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{CFBDB445-C1ED-3EFC-A934-DCA095C15860}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{FA483F90-79B2-3931-A4B0-A27F0E4EF62D}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

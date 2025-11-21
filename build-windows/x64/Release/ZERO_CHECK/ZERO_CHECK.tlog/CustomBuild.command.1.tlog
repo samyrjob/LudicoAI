@@ -1,0 +1,10 @@
+^C:\USERS\NOTRE\LUDICOMOVIE\LUDICOMOVIE\BUILD-WINDOWS\CMAKEFILES\1B689D0D210DC0D56F09EBF61A047EE6\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/notre/LudicoMovie/LudicoMovie -BC:/Users/notre/LudicoMovie/LudicoMovie/build-windows --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/notre/LudicoMovie/LudicoMovie/build-windows/visualia.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

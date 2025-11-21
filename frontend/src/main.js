@@ -1,261 +1,272 @@
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
-const path = require('path');
-const { spawn } = require('child_process');
-const BackendIPC = require('./backend-ipc');
+#include "audio.h"
+#include "whisper_engine.h"
+#include "translation_engine.h"
+#include "ipc.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <unistd.h>
+#include <time.h>
 
-let mainWindow = null;
-let backendProcess = null;
-let backendIPC = null;
+/* Global state */
+static audio_context_t *g_audio = NULL;
+static whisper_engine_t *g_whisper = NULL;
+static translation_engine_t *g_translator = NULL;
+static volatile sig_atomic_t g_running = 1;
 
-function createWindow() {
-    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+/* Translation settings */
+static const char *g_target_lang = NULL;
+static const char *g_source_lang = NULL;
 
-    mainWindow = new BrowserWindow({
-        width: width,
-        height: height,  // Full screen height to show controls
-        x: 0,
-        y: 0,  // Position at top of screen
-        transparent: true,
-        backgroundColor: '#00000000',  // Fully transparent background
-        frame: false,
-        alwaysOnTop: true,
-        skipTaskbar: true,
-        resizable: false,
-        hasShadow: false,  // Disable window shadow
-        vibrancy: null,  // Disable macOS vibrancy effects
-        webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
-        }
-    });
+/* Language detection state */
+static char g_last_detected_lang[8] = {0};
+static time_t g_last_lang_check = 0;
 
-    // Make window click-through (non-interactive)
-    // On Windows, we need to pass { forward: true } for proper click-through behavior
-    if (process.platform === 'win32') {
-        mainWindow.setIgnoreMouseEvents(true, { forward: true });
-    } else {
-        mainWindow.setIgnoreMouseEvents(true);
-    }
+/* Configuration */
+#define DEFAULT_MODEL_PATH "models/whisper-base.gguf"
+#define DEFAULT_TRANSLATION_MODEL "models/mt5-small.gguf"
+#define DEFAULT_LANGUAGE NULL  /* Auto-detect language */
+#define AUDIO_CHUNK_SIZE (AUDIO_SAMPLE_RATE * 3)  /* 3 seconds */
 
-    // Load the overlay UI
-    mainWindow.loadFile(path.join(__dirname, 'overlay.html'));
+/* Audio buffer for accumulation */
+static float audio_buffer[AUDIO_CHUNK_SIZE];
+static size_t audio_buffer_pos = 0;
 
-    // Open DevTools in development
-    if (process.env.NODE_ENV === 'development') {
-        mainWindow.webContents.openDevTools({ mode: 'detach' });
-    }
-
-    mainWindow.on('closed', () => {
-        mainWindow = null;
-    });
-
-    console.log('[Electron] Window created');
+/* Signal handler for graceful shutdown */
+static void signal_handler(int sig) {
+    (void)sig;
+    fprintf(stderr, "\n[Main] Received shutdown signal\n");
+    g_running = 0;
 }
 
-function startBackend() {
-    const modelFile = process.env.VISUALIA_MODEL || 'whisper-base.gguf';
-    const language = process.env.VISUALIA_LANG || 'auto';
-    const targetLang = process.env.VISUALIA_TARGET_LANG || null;
-    const translationModel = process.env.VISUALIA_TRANSLATION_MODEL || 'madlad400-10b-mt';
+/* Translation callback - called when translation is ready */
+static void on_translation(const char *translated_text, void *user_data) {
+    const char *original_text = (const char *)user_data;
 
-    // Determine if we're on Windows and need to use WSL
-    const isWindows = process.platform === 'win32';
-    
-    let backendPath, modelPath, args;
-    
-    if (isWindows) {
-        // Convert Windows paths to WSL paths and run via wsl.exe
-        const wslProjectPath = '/mnt/c/Users/notre/LudicoMovie/LudicoMovie';
-        backendPath = 'wsl';
-        modelPath = `${wslProjectPath}/models/${modelFile}`;
-        
-        args = [
-            `${wslProjectPath}/build/visualia`,
-            '-m', modelPath,
-            '-l', language
-        ];
-        
-        if (targetLang) {
-            const translationModelPath = `${wslProjectPath}/models/${translationModel}.gguf`;
-            args.push('-t', targetLang, '-T', translationModelPath);
-        }
-    } else {
-        // Native Linux/macOS
-        backendPath = path.join(__dirname, '../../build/visualia');
-        modelPath = path.join(__dirname, '../../models', modelFile);
-        args = ['-m', modelPath, '-l', language];
-        
-        if (targetLang) {
-            const translationModelPath = path.join(__dirname, '../../models', `${translationModel}.gguf`);
-            args.push('-t', targetLang, '-T', translationModelPath);
-        }
+    if (translated_text && original_text) {
+        fprintf(stderr, "[Translation] %s → %s\n", original_text, translated_text);
+
+        /* Send to frontend via IPC */
+        time_t now = time(NULL);
+        ipc_send_translation(translated_text, original_text, (long)now);
     }
 
-    console.log('[Electron] Starting backend:', backendPath, args.join(' '));
-
-    backendProcess = spawn(backendPath, args, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        shell: false  // Don't use shell
-    });
-
-    // Initialize IPC handler
-    backendIPC = new BackendIPC(backendProcess);
-
-    // Handle messages from backend
-    backendIPC.on('transcription', (data) => {
-        if (mainWindow) {
-            mainWindow.webContents.send('transcription', data);
-        }
-    });
-
-    backendIPC.on('translation', (data) => {
-        if (mainWindow) {
-            mainWindow.webContents.send('translation', data);
-        }
-    });
-
-    backendIPC.on('status', (data) => {
-        console.log('[Backend Status]', data.message);
-        if (mainWindow) {
-            mainWindow.webContents.send('status', data);
-        }
-    });
-
-    backendIPC.on('error', (data) => {
-        console.error('[Backend Error]', data.message);
-        if (mainWindow) {
-            mainWindow.webContents.send('error', data);
-        }
-    });
-
-    backendIPC.on('language_detected', (data) => {
-        console.log('[Backend] Language detected:', data.language);
-        if (mainWindow) {
-            mainWindow.webContents.send('language_detected', data);
-        }
-
-        // Auto-switch to language-specific model if in auto mode
-        const currentLang = process.env.VISUALIA_LANG || 'auto';
-        if (currentLang === 'auto' && data.language) {
-            console.log('[Electron] Auto-switching to language:', data.language);
-            stopBackend();
-            process.env.VISUALIA_LANG = data.language;
-            setTimeout(() => {
-                startBackend();
-            }, 1000);
-        }
-    });
-
-    // Handle backend process exit
-    backendProcess.on('exit', (code) => {
-        console.log(`[Electron] Backend exited with code ${code}`);
-        backendIPC = null;
-        backendProcess = null;
-    });
-
-    // Log backend stderr
-    backendProcess.stderr.on('data', (data) => {
-        console.log('[Backend]', data.toString().trim());
-    });
-}
-
-function stopBackend() {
-    if (backendProcess) {
-        console.log('[Electron] Stopping backend...');
-        backendProcess.kill('SIGTERM');
-        backendProcess = null;
-    }
-    if (backendIPC) {
-        backendIPC.cleanup();
-        backendIPC = null;
+    /* Free the original text copy */
+    if (original_text) {
+        free((void *)original_text);
     }
 }
 
-// App lifecycle
-app.whenReady().then(() => {
-    createWindow();
-    startBackend();
+/* Transcription callback - called when Whisper has results */
+static void on_transcription(const char *text, void *user_data) {
+    (void)user_data;
 
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow();
-        }
-    });
-});
+    if (text && strlen(text) > 0) {
+        fprintf(stderr, "[Transcription] %s\n", text);
 
-app.on('window-all-closed', () => {
-    stopBackend();
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
-});
+        /* Send to frontend via IPC */
+        time_t now = time(NULL);
+        ipc_send_transcription(text, (long)now);
 
-app.on('before-quit', () => {
-    stopBackend();
-});
-
-// IPC handlers
-ipcMain.on('toggle-click-through', (event, enabled) => {
-    if (mainWindow) {
-        // On Windows, we need to pass { forward: true } when enabling click-through
-        if (process.platform === 'win32') {
-            if (enabled) {
-                mainWindow.setIgnoreMouseEvents(true, { forward: true });
-            } else {
-                mainWindow.setIgnoreMouseEvents(false);
+        /* If translation is enabled, translate the text */
+        if (g_translator && g_target_lang) {
+            /* Make a copy of the text for the translation callback */
+            char *text_copy = strdup(text);
+            if (text_copy) {
+                const char *source_lang = g_source_lang ? g_source_lang : "auto";
+                translation_translate(g_translator, text_copy, source_lang, g_target_lang, text_copy);
             }
-        } else {
-            mainWindow.setIgnoreMouseEvents(enabled);
         }
     }
-});
+}
 
-// Handle model change requests
-ipcMain.on('change-model', (event, model) => {
-    console.log('[Electron] Changing model to:', model);
-    stopBackend();
+/* Audio callback - called when audio data is available */
+static void on_audio_data(const float *samples, size_t num_samples, void *user_data) {
+    (void)user_data;
 
-    // Update model path based on selection
-    const modelFiles = {
-        'base': 'whisper-base.gguf',
-        'small': 'whisper-small.gguf',
-        'medium': 'whisper-medium.gguf',
-        'large-v3': 'whisper-large-v3.gguf'
-    };
+    /* Accumulate audio in buffer */
+    for (size_t i = 0; i < num_samples; i++) {
+        audio_buffer[audio_buffer_pos++] = samples[i];
 
-    process.env.VISUALIA_MODEL = modelFiles[model] || 'whisper-base.gguf';
+        /* Process when buffer is full (3 seconds) */
+        if (audio_buffer_pos >= AUDIO_CHUNK_SIZE) {
+            /* Process with Whisper */
+            if (g_whisper) {
+                whisper_engine_process(g_whisper, audio_buffer, audio_buffer_pos);
+            }
 
-    setTimeout(() => {
-        startBackend();
-    }, 1000);
-});
+            /* Overlap: keep last 1 second for context */
+            const size_t overlap = AUDIO_SAMPLE_RATE;
+            memmove(audio_buffer, audio_buffer + audio_buffer_pos - overlap,
+                   overlap * sizeof(float));
+            audio_buffer_pos = overlap;
+        }
+    }
+}
 
-// Handle source language change requests
-ipcMain.on('change-source-lang', (event, lang) => {
-    console.log('[Electron] Changing source language to:', lang);
-    stopBackend();
+static void print_usage(const char *prog) {
+    fprintf(stderr, "Usage: %s [options]\n", prog);
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "  -m MODEL    Path to Whisper model (default: %s)\n", DEFAULT_MODEL_PATH);
+    fprintf(stderr, "  -l LANG     Language code (en, fr, es, etc.) or 'auto' for auto-detect (default: auto)\n");
+    fprintf(stderr, "  -t LANG     Target language for translation (optional, e.g., en, fr, es)\n");
+    fprintf(stderr, "  -T MODEL    Path to translation model (default: %s)\n", DEFAULT_TRANSLATION_MODEL);
+    fprintf(stderr, "  -h          Show this help\n");
+}
 
-    process.env.VISUALIA_LANG = lang;
+int main(int argc, char *argv[]) {
+    const char *model_path = DEFAULT_MODEL_PATH;
+    const char *language = DEFAULT_LANGUAGE;
+    const char *translation_model_path = DEFAULT_TRANSLATION_MODEL;
+    const char *target_lang = NULL;
 
-    setTimeout(() => {
-        startBackend();
-    }, 1000);
-});
-
-// Handle translation enable/disable and target language change
-ipcMain.on('change-translation', (event, config) => {
-    console.log('[Electron] Translation settings:', config);
-    stopBackend();
-
-    if (config.enabled && config.targetLang && config.targetLang !== 'none') {
-        process.env.VISUALIA_TARGET_LANG = config.targetLang;
-        process.env.VISUALIA_TRANSLATION_MODEL = config.translationModel || 'madlad400-10b-mt';
-    } else {
-        delete process.env.VISUALIA_TARGET_LANG;
-        delete process.env.VISUALIA_TRANSLATION_MODEL;
+    /* Parse command line arguments */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-m") == 0 && i + 1 < argc) {
+            model_path = argv[++i];
+        } else if (strcmp(argv[i], "-l") == 0 && i + 1 < argc) {
+            language = argv[++i];
+            if (strcmp(language, "auto") == 0) {
+                language = NULL;  /* Auto-detect */
+            }
+        } else if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) {
+            target_lang = argv[++i];
+        } else if (strcmp(argv[i], "-T") == 0 && i + 1 < argc) {
+            translation_model_path = argv[++i];
+        } else if (strcmp(argv[i], "-h") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        } else {
+            fprintf(stderr, "Unknown option: %s\n", argv[i]);
+            print_usage(argv[0]);
+            return 1;
+        }
     }
 
-    setTimeout(() => {
-        startBackend();
-    }, 1000);
-});
+    /* Store translation settings in global variables */
+    g_target_lang = target_lang;
+    g_source_lang = language;
+
+    /* Set up signal handlers */
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    fprintf(stderr, "=== VisualIA Backend ===\n");
+    fprintf(stderr, "[Main] Starting up...\n");
+
+    /* Initialize IPC */
+    if (!ipc_init()) {
+        fprintf(stderr, "[Main] Failed to initialize IPC\n");
+        return 1;
+    }
+
+    ipc_send_status("Initializing Whisper...");
+
+    /* Initialize Whisper */
+    g_whisper = whisper_engine_init(model_path, language, on_transcription, NULL);
+    if (!g_whisper) {
+        fprintf(stderr, "[Main] Failed to initialize Whisper: %s\n", whisper_engine_get_error());
+        ipc_send_error("Failed to initialize Whisper");
+        ipc_cleanup();
+        return 1;
+    }
+
+    /* Initialize translation engine if target language is specified */
+    if (target_lang) {
+        ipc_send_status("Initializing translation engine...");
+        fprintf(stderr, "[Main] Initializing translation: %s → %s\n",
+                language ? language : "auto", target_lang);
+
+        g_translator = translation_init(translation_model_path, on_translation, NULL);
+        if (!g_translator) {
+            fprintf(stderr, "[Main] Warning: Failed to initialize translation engine\n");
+            fprintf(stderr, "[Main] Translation will be disabled. Continuing without translation...\n");
+            ipc_send_status("Translation unavailable - continuing with transcription only");
+            g_target_lang = NULL;  /* Disable translation */
+        } else {
+            fprintf(stderr, "[Main] Translation engine ready\n");
+            ipc_send_status("Translation engine ready");
+        }
+    }
+
+    ipc_send_status("Initializing audio capture...");
+
+    /* Initialize audio capture */
+    g_audio = audio_init(on_audio_data, NULL);
+    if (!g_audio) {
+        fprintf(stderr, "[Main] Failed to initialize audio: %s\n", audio_get_error());
+        ipc_send_error("Failed to initialize audio capture");
+        whisper_engine_cleanup(g_whisper);
+        ipc_cleanup();
+        return 1;
+    }
+
+    /* Start audio capture */
+    if (!audio_start(g_audio)) {
+        fprintf(stderr, "[Main] Failed to start audio: %s\n", audio_get_error());
+        ipc_send_error("Failed to start audio capture");
+        audio_cleanup(g_audio);
+        whisper_engine_cleanup(g_whisper);
+        ipc_cleanup();
+        return 1;
+    }
+
+    ipc_send_status("Running - listening for audio...");
+    fprintf(stderr, "[Main] Running (press Ctrl+C to stop)\n");
+
+    /* Main loop */
+    while (g_running) {
+        /* Poll for IPC messages */
+        ipc_poll();
+
+        /* Check for language detection changes (every second) */
+        time_t now = time(NULL);
+        if (now - g_last_lang_check >= 1) {
+            g_last_lang_check = now;
+
+            const char *detected_lang = whisper_engine_get_detected_language(g_whisper);
+            if (detected_lang && strlen(detected_lang) > 0) {
+                /* Check if language has changed */
+                if (strcmp(g_last_detected_lang, detected_lang) != 0) {
+                    fprintf(stderr, "[Main] Language changed: %s → %s\n",
+                            g_last_detected_lang[0] ? g_last_detected_lang : "none",
+                            detected_lang);
+
+                    strncpy(g_last_detected_lang, detected_lang, sizeof(g_last_detected_lang) - 1);
+                    g_last_detected_lang[sizeof(g_last_detected_lang) - 1] = '\0';
+
+                    /* Send language detection to frontend */
+                    ipc_send_language_detected(detected_lang);
+
+                    /* TODO: Reload Whisper with language-specific model */
+                    char status_msg[128];
+                    snprintf(status_msg, sizeof(status_msg),
+                            "Detected language: %s - Consider using language-specific model",
+                            detected_lang);
+                    ipc_send_status(status_msg);
+                }
+            }
+        }
+
+        /* Sleep briefly to avoid busy waiting */
+        usleep(100000);  /* 100ms */
+    }
+
+    /* Cleanup */
+    fprintf(stderr, "[Main] Shutting down...\n");
+    ipc_send_status("Shutting down...");
+
+    audio_stop(g_audio);
+    audio_cleanup(g_audio);
+    whisper_engine_cleanup(g_whisper);
+
+    if (g_translator) {
+        translation_cleanup(g_translator);
+    }
+
+    ipc_cleanup();
+
+    fprintf(stderr, "[Main] Goodbye!\n");
+    return 0;
+}

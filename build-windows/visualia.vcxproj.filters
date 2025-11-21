@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\notre\LudicoMovie\LudicoMovie\backend\src\main.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\notre\LudicoMovie\LudicoMovie\backend\src\audio.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\notre\LudicoMovie\LudicoMovie\backend\src\whisper_engine.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\notre\LudicoMovie\LudicoMovie\backend\src\ipc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\notre\LudicoMovie\LudicoMovie\backend\src\translation_engine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\notre\LudicoMovie\LudicoMovie\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{FA483F90-79B2-3931-A4B0-A27F0E4EF62D}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
